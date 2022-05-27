@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=0,viewport-fit=cover">
+  <title>Path</title>
+  <link rel="stylesheet" href="../css/style.css" media="all">
+</head>
+
+<body>
+  <h1>Hello World!</h1>
+  <p id="param"><b>Query Param: </b></p>
+  <img id="pictureUrl">
+  <p id="userId"><b>userId:</b> </p>
+  <p id="displayName"><b>displayName:</b> </p>
+  <p id="statusMessage"><b>statusMessage:</b> </p>
+  <p id="decodedIDToken"><b>email:</b> </p>
+  <script>
+    // Query Params
+    const queryString = decodeURIComponent(window.location.search);
+    const params = new URLSearchParams(queryString);
+    document.getElementById("param").append(params.get("param"));
+  </script>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script>
+    async function getUserProfile() {
+      const profile = await liff.getProfile();
+      document.querySelector("#pictureUrl").src = profile.pictureUrl;
+      document.querySelector("#userId").append(profile.userId);
+      document.querySelector("#statusMessage").append(profile.statusMessage);
+      document.querySelector("#displayName").append(profile.displayName);
+      document.querySelector("#decodedIDToken").append(liff.getDecodedIDToken().email);
+    }
+
+    async function main() {
+      // ใช้งาน liff.init เหมือนกับ index.html ที่อยู่ด้านนอก
+      await liff.init({ liffId: "1657158646-pdnrwZDe" });
+      // ตรวจสอบว่า Login แล้วหรือยัง
+      if (liff.isLoggedIn()) {
+        getUserProfile();
+      } else {  // กรณีที่ยังไม่ได้ login
+        // การใช้งาน liff.login() ในกรณีที่เป็นหน้าที่อยู่ใน path นั้น จะต้องมีการระบุ path หลังจากที่ login สำเร็จด้วย
+        // ซึ่งถ้าไม่ระบุ หลังจาก login แล้ว หน้าจอจะ redirect ไปยัง index ของด้านนอก เนื่องจากเป็น URL ที่ผูกไว้กับ LIFF ใน Console
+        // ดังนั้นต้องมีการระบุ parameter "redirectUri" เพิ่มเติมเพื่อให้ redirect แล้วอยู่ที่หน้าเดิม (โดยการใส่ url หน้าตัวเอง)
+        // และต้องไประบุ url ที่ Developer Console ที่ LIFF channel -> เมนู "LINE Login"
+        // ที่หัวข้อ "Callback URL" เพิ่มด้วย ตัวอย่าง "https://jatu-studiobox.github.io/liff_skool/path"
+        // (ช่องใส่ค่า "Callback URL สามารถใส่ได้มากกว่า 1 path โดยการ enter ขึ้นบรรทัดใหม่)
+        liff.login({
+          redirectUri: "https://jatu-studiobox.github.io/liff_skool/path"
+        }); // เรียกให้มีการ login ได้แก่ กรณีของ External Browser
+      }
+      // createUniversalLink()
+    }
+    main();
+  </script>
+
+</body>
+
+</html>

@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=0,viewport-fit=cover">
+  <title>My LIFF app</title>
+  <!-- <link rel="stylesheet" href="css/style.css" media="all"> -->
+  <!-- วิธีแก้ไขปัญหา cache ที่เกิดขึ้นตอนพัฒนา LIFF 
+  ให้ใช้วิธี javascript write tag ไฟล์ที่ต้องการแก้ไขปัญหาเรื่อง cache ได้แก่ ไฟล์ .css
+  แต่เมื่อพัฒนาเสร็จแล้วจะเอาขึ้น production ควรจะใช้เป็นวิธี add tag แบบปกติจะดีกว่าเนื่องจะให้มีการ cache ปกติ
+  แต่ในกรณีที่ใช้ document.write แล้วยังมีการ cache อยู่ ให้ลองใช้วิธีเพิ่ม querystring "?cache=1" (run เลขไปเรื่อย ๆ)
+  ที่ Endpoint ที่ set ไว้แล้วใน Developer Console แทน ตัวอย่างเช่น 
+  https://jatu-studiobox.github.io/liff_skool/path/?cache=1
+  -->
+  <script>
+    document.write('<link rel="stylesheet" media="all" href="css/style.css?cache=' + new Date().getTime() + '">');
+  </script>
+</head>
+
+<body>
+  <p id="os"><b>OS:</b> </p>
+  <p id="language"><b>Language:</b> </p>
+  <p id="version"><b>Version:</b> </p>
+  <p id="isInClient"><b>isInClient:</b> </p>
+  <p id="accessToken"><b>AccessToken:</b> </p>
+  <img id="pictureUrl">
+  <p id="userId"><b>userId:</b> </p>
+  <p id="displayName"><b>displayName:</b> </p>
+  <p id="statusMessage"><b>statusMessage:</b> </p>
+  <p id="decodedIDToken"><b>email:</b> </p>
+  <p id="type"><b>type:</b> </p>
+  <p id="viewType"><b>viewType:</b> </p>
+  <p id="utouId"><b>utouId:</b> </p>
+  <p id="roomId"><b>roomId:</b> </p>
+  <p id="groupId"><b>groupId:</b> </p>
+  <p id="friendship"><b>isFriendship:</b> </p>
+  <p id="scanCode"><b>Code:</b> </p>
+  <p id="isLoggedIn"><b>isLoggedIn:</b> </p>
+  <p id="universalLink1"><b>Universal Link:</b> </p>
+  <p id="universalLink2"><b>Universal Link with Query params:</b> </p>
+  <p><a href="path/?param=9">Link to Path</a></p>
+
+  <button id="btnMsg" onclick="sendMsg()">Send Message</button>
+  <button id="btnShare" onclick="shareMsg()">Share Target Picker</button>
+  <button onclick="openWindow()">Open Window</button>
+  <button id="btnScanCode" onclick="scanCode()">Scan Code</button>
+  <button id="btnLogOut" onclick="logOut()">Log Out</button>
+  <button id="btnClose" onclick="closed()">Close</button>
+
+  <!-- vconsole เป็น Developer tool ในการ debug LIFF application  -->
+  <script src="js/vconsole.min.js"></script>
+  <script>
+    var vConsole = new VConsole();
+    console.log("Hello World!");
+    errorPlease();
+  </script>
+
+  <!-- LIFF SDK -->
+  <!-- LIFF API Reference -->
+  <!-- https://developers.line.biz/en/reference/liff/ -->
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script>
+    function createUniversalLink() {
+    }
+
+    // การที่จะใช้ feature 'share target picker' ตัว LINE App จะต้องมี version 10.3.0 ขึ้นไป
+    // share target picker การแชร์ message รูปแบบต่าง ๆ ไปให้ เพื่อน หรือ กลุ่ม ในนามของเราเอง
+    // share target picker รองรับ External Browser ด้วย
+    // การเปิด feature share target picker -> ไปที่ tab "LIFF" -> จะมี toggle button อันนึงชื่อว่า "shareTargetPicker"
+    // ให้ enabled ขึนมา (จะมี concent agreement ให้ยอมรับด้วย)
+
+    // ใช้ async เนื่องจากคำสั่งการ share target picker เป็น promise
+    async function shareMsg() {
+      // ข้อความที่จะส่งใน share target picker สูงสุดได้ที่ 5 bubbles
+      await liff.shareTargetPicker([
+        {
+          type: "text",
+          text: "This message was sent by ShareTargetPicker"
+        }
+      ]);
+    }
+
+    function logOut() {
+      liff.logout();  // สั่งให้ LIFF Logout
+      window.location.reload(); // สั่งให้ windows refresh หน้า เพื่อให้ได้เห็นหน้าจอตอนที่ยังไม่ได้ Login
+    }
+
+    // การสั่งปิดหน้า LIFF -> use case ได้แก่ การปิดหน้าต่างแบบอัตโนมัติ กรณีที่ต้องการให้ user กลับไปยังห้อง chat โดยอัตโนมัติ
+    // ช่วยเรื่อง security ได้ ได้แก่ กรณีที่มีการเปิดหน้า LIFF ขึ้นมา จะมีการ generate temporary access token (gen ใหม่ทุกครั้งเมื่อมีการเปิด LIFF)
+    // ถ้าปิดหน้าต่าง LIFF temporary access token ที่ generate จะถูก revoke ออก และไม่สามารถใช้งานได้แล้ว
+    function closed() {
+      liff.closeWindow();
+    }
+
+    async function scanCode() {
+      // เปิด Scan QR การอนุญาตให้ LIFF ใช้งาน Scan QR Code 
+      // tab "LIFF" -> แล้วเลือกรายการ LIFF app ที่ใช้งานอยู่
+      // เลื่อนลงมาที่หัวข้อ "Scan QR" -> เลือก slide button ให้ enabled ขึ้นมา
+      const result = await liff.scanCode();
+      document.querySelector("#scanCode").append(result.value);
+    }
+
+    // feature "open window" เป็นการให้ LIFF เปิด Browser
+    // การเปิด Browser เปิดได้ 2 รูปแบบ, in-app-browser (ยังอยู่ในบริบทของ App LINE) และ External browser (หลุดจาก App LINE ไปเลย)
+    // url ที่ต้องการเปิด
+    // กำหนดว่าจะเป็น in-app หรือ external -> true คือ external, false คือ in-app
+    function openWindow() {
+      liff.openWindow({
+        url: "https://line.me",
+        external: true
+      });
+    }
+
+    // Botlink คือการแนะนำ chatbot ผ่าน LIFF
+    // ให้ไปที่ LIFF Channel นั้น -> Tab "Basic settings" -> Section "Linked OA"
+    // ให้กด "Edit" -> จะมี Dropdownlist ให้เลือก Chatbot ที่เรามีอยู่ -> หลังจากเลือกรายการแล้วกด "Update"
+    // หลังจาก Updated แล้ว ให้ไปที่ tab "LIFF" -> แล้วเลือกรายการ LIFF app ที่ใช้งานอยู่
+    // เลื่อนลงมาที่หัวข้อ "Bot link feature" -> ให้เปลี่ยนจาก "Off" เป็น "On"
+    // ซึ่ง "On" มี 2 รูปแบบ ได้แก่ "normal" กับ "Aggressive" 
+    // แบบ Normal จะขึ้นมาที่หน้า concent ให้เลือก allow
+    // แบบ Aggressive จะไม่ขึ้นที่หน้า concent แต่ละมาเป็นหน้าขั้นกลางหลังจากหน้า concent เพื่อให้เลือก allow หรือไม่ allow
+    // ข้อแนะนำ ให้เพิ่ม feature Bot link ในจุดเริ่มกระบวนก่อนที่จะปล่อย LIFF ให้ user ใช้งาน
+    // เนื่องจาก bot link ไม่ใช่ scope ดังนั้นที่หน้า concent ถ้า user accept concent ต่าง ๆ ผ่านไปแล้ว ถ้ามา add bot link
+    // ภายหลัง หน้า concent จะไม่ปรากฎให้ user เลือกแล้ว
+
+    // ใช้ async เนื่องจากคำสั่งการ get friendship เป็น promise
+    async function getFriendship() {
+      // การทำงานบางอย่างของ LIFF นั้น บางครั้งต้องทำงานกับ Chat bot ดังนั้นจึงมีการตรวรสอบว่า User นั้น Add Chatbot นั้น ๆ มาเป็นเพื่อนแล้วเหรือยัง
+      const friend = await liff.getFriendship();
+      document.querySelector("#friendship").append(friend.friendFlag);  // true คือเป็นเพื่อน, false คือไม่
+      // ตรวจสอบกรณีที่ยังไม่ได้เป็น friend กับ chatbot
+      if (!friend.friendFlag) {
+        if (confirm("คุณยังไม่ได้เพิ่ม Bot เป็นเพื่อน จะเพิ่มเลยไหม?")) {
+          // redirect location ไปหา chatbot เพื่อ add chatbot
+          window.location = "https://line.me/R/ti/p/@348jemns"
+        }
+      }
+    }
+
+    // ใช้ async เนื่องจากคำสั่งที่ใช้ส่ง message เป็น promise
+    async function sendMsg() {
+      // เปิด scope การอนุญาตให้ LIFF สามารถเขียน message กลับมาที่ห้อง chat โดยไปที่ 
+      // tab "LIFF" -> แล้วเลือกรายการ LIFF app ที่ใช้งานอยู่
+      // เลื่อนลงมาที่หัวข้อ "Scopes" -> กดที่ "View all" -> ให้ check "chat_message.write"
+      // ที่หน้า LINE จะต้องมีการให้ allow concent ใหม่
+
+      // ในการส่ง message ควรจะมีการ check ก่อนว่า บริบท ที่จะส่ง message ไปนั้น ไม่ควรจะเป็นค่า none
+      // เนื่องจากไม่ได้เปิด LIFF มาจากห้อง หรือ กลุ่ม chat
+      if (liff.getContext().type !== "none") {
+        // ข้อความที่ liff จะส่งกลับไปยังห้อง chat มีได้หลายรูปแบบ
+        // ข้อความที่ส่งกลับไปยังห้อง chat จะเป็นข้อความที่ส่งโดย "เรา" ที่่กดปุ่มส่ง message
+        // และสามารถส่งได้สูงสุดทั้งหมด 5 bubbles (5 ข้อความต่อการเรียก function sendMessages 1 ครั้ง)
+        await liff.sendMessages([
+          {
+            "type": "sticker",
+            "stickerId": 1,
+            "packageId": 1
+          },
+          {
+            "type": "sticker",
+            "stickerId": 2,
+            "packageId": 1
+          },
+          {
+            "type": "sticker",
+            "stickerId": 3,
+            "packageId": 1
+          }
+        ]);
+        alert("Message sent");
+      }
+    }
+
+    // context หรือ บริบท ใน LIFF สามารถรู้ที่มาที่ไปของการเปิด LIFF เช่น เปิด LIFF มาจากห้อง Chatbot แบบตัวต่อตัวกับ Chatbot รึเปล่า?
+    // กับเพื่อน กับ room หรือกับ Group รึเปล่า? หรือจากข้างนอกรึเปล่า? เมื่อทราบเรื่องพวกนี้แล้วทำให้ตัดสินใจในเรื่องการส่ง message ได้
+    // https://developers.line.biz/en/reference/liff/#get-context
+    function getContext() {
+      document.querySelector("#type").append(liff.getContext().type);
+      // เลือก view แบบไหนอยู่
+      document.querySelector("#viewType").append(liff.getContext().viewType);
+      document.querySelector("#utouId").append(liff.getContext().utouId);
+      document.querySelector("#roomId").append(liff.getContext().roomId);
+      document.querySelector("#groupId").append(liff.getContext().groupId);
+    }
+
+    async function getUserProfile() {
+      // การ Get User Profile จาก LIFF นั้นเป็น promise ตังนั้นจึงต้องใช้ async await 
+      // หลังจาก liff.init แล้ว สามารถที่จะดึงข้อมูลของ User ออกมาได้เลย ได้แก่
+      // pictureUrl - รูป profile
+      // userId - User ID
+      // displayName - ชื่อ Display ของผู้ใช้งาน
+      // statusMessage - Status message ของผู้ใช้งาน
+
+      // ดึง profile ของ user ออกมา
+      const profile = await liff.getProfile();
+      document.querySelector("#pictureUrl").src = profile.pictureUrl;
+      document.querySelector("#userId").append(profile.userId);
+      document.querySelector("#statusMessage").append(profile.statusMessage);
+      document.querySelector("#displayName").append(profile.displayName);
+
+      // LIFF v2 มีการ Integrate LINE Login เข้ามาด้วย ข้อดีตือสามารถ get ตัว email ได้ด้วย
+      // LINE ใช้ platform OpenID ในการเก็บข้อมูล User
+      // การจะดึง email ให้ไปที่ LIFF Channel นั้น -> Tab "Basic settings" -> Section "OpenID Connect"
+      // ที่รายการ "Email address permission" ให้กำหนดเป็น "Applied" ขึ้นมาใช้งาน
+      // (ในการ apply จะต้องยอมรับข้อตกลงและมี screenshot ของ Concern ในการใช้งาน)
+      // หลังจาก appled แล้ว ให้ไปที่ tab "LIFF" -> แล้วเลือกรายการ LIFF app ที่ใช้งานอยู่
+      // เลื่อนลงมาที่หัวข้อ "Scopes" -> เลือกรายการ "openid" และ "email" เพิ่มเติม
+      // ที่หน้า LINE จะต้องมีการให้ allow concent ใหม่
+      document.querySelector("#decodedIDToken").append(liff.getDecodedIDToken().email);
+    }
+
+    function getEnvironment() {
+      // Get opened at 'Android', 'IOS' or 'Web'
+      document.querySelector("#os").append(liff.getOS());
+      // Get default client language
+      document.querySelector("#language").append(liff.getLanguage());
+      // Get LIFF SDK version
+      document.querySelector("#version").append(liff.getVersion());
+      // Not 'Channel Access Token', เป็นค่า temporary access token เพื่อเอาไว้ verify หรือ action ต่าง ๆ ในระบบหลังบ้าน (เกี่ยวกับเรื่อง security)
+      document.querySelector("#accessToken").append(liff.getAccessToken());
+      // Liff ที่เปิดขึ้นมานี้ อยู่ใน Application LINE หรือ External Browser -> ประโยชน์เพื่อใช้ในการ แสดง/ซ่อน Feature บางสำหรับบน Application LINE หรือ External Browser
+      document.querySelector("#isInClient").append(liff.isInClient());
+      if (liff.isInClient()) {  // isInClient() เป็น true กรณีเปิดใน Application LINE, false เปิดที่ External Browser
+        document.querySelector("#btnLogOut").style.display = "none";
+      } else {
+        document.querySelector("#btnMsg").style.display = "none";
+        document.querySelector("#btnScanCode").style.display = "none";
+        document.querySelector("#btnClose").style.display = "none";
+      }
+    }
+
+    async function main() {
+      // alert("LINE Developers x Skooldio")
+
+      // ตามปกติการใช้งาน liff จะต้องมีการเรียก liff.init ก่อนจะสั่งให้ liff จะทำงานอย่างอื่นเสมอ
+      // ซึ่งถ้ามีการเรียกใช้งานอย่างอื่นที่ไม่ใช่ liff.init ก่อน จะทำให้ liff error ดังนั้น ณ จุดนี้จึงมี function
+      // liff.ready เข้ามาช่วย เพื่อดูว่า liff.init นั้นทำงานเรียบร้อยแล้ว
+      // ready จะเป็น promise ดังนั้น จะต้องมี callback หลังจากที่ ready ทำงานเสร็จแล้ว
+      liff.ready.then(() => {
+        // LIFF version 2 ได้มีการ integrate เอา LINE Login SDK v.2.1 เข้ามา ทำให้ LIFF ที่เปิดที่ External Browser
+        // สามารถที่จะใช้งาน Login ได้
+        document.querySelector("#isLoggedIn").append(liff.isLoggedIn());
+        // ตรวจสอบว่า Login แล้วหรือยัง
+        if (liff.isLoggedIn()) {
+          getEnvironment();
+          getUserProfile();
+          getContext();
+          getFriendship();
+        } else {  // กรณีที่ยังไม่ได้ login
+          liff.login(); // เรียกให้มีการ login ได้แก่ กรณีของ External Browser
+        }
+      });
+      // เริ่มต้นทุกครั้งต้อง liff.init -> ต้องใช้ LIFF ID ให้ไปเอาที่ LINE Developer Console ที่ LIFF Channel ที่สร้างไว้
+      // การใข้ liff.init นั้น ไม่ได้จำกัดเฉพาะ URL endpoint ที่ผูกไว้ใน Developerr console เท่านั้น แต่สามารถใช้ได้กับทุกที่ทุก path
+      await liff.init({ liffId: "1657158646-pdnrwZDe" });
+
+      // createUniversalLink()
+    }
+    main();
+  </script>
+</body>
+
+</html>
